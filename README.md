@@ -13,8 +13,8 @@
      6. org.apache.zookeeper.server.ZooKeeperServer 类
 
      其中
-     - 1人给出以上类、接口的监听机制解释，
-     - 1人绘制UML图并审阅相关解释。
+     - 1人给出以上类、接口的监听机制解释，说明类的关系与类的大致结构与关键函数的实现方法即可，不用管具体的原理。
+     - 1人绘制UML图并审阅相关解释,需要学习类图的画法与类的6种关系的类图表示(关联\组合\聚合\依赖\继承\实现)。
      - 另2人给出ZooKeeper论文中提到的API是如何使用这个机制的（需要阅读[ZooKeeper论文](https://pdos.csail.mit.edu/6.824/papers/zookeeper.pdf)的摘要与Introduction,ZooKeeper service的2.1与2.2部分，
 
        2.4部分只需要由1人阅读一个案例并写出伪代码进行解释即可，毕竟ZooKeeper允许用户自己设计一些原语，推荐Simple Locks w/o herd effect，因为有现成的源代码并且是监听相关。
