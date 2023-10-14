@@ -1,4 +1,9 @@
-在org.apache.zookeeper.server.DataTree类含有两个成员变量 `private IWatchManager dataWatches` 与 `private IWatchManager childWatches` ，表示两种WatchManager类型，用于监视数据与子节点。
+在org.apache.zookeeper.server.DataTree类含有两个成员变量 
+```java
+	private IWatchManager dataWatches;
+	private IWatchManager childWatches;
+```
+，表示两种WatchManager类型，用于监视数据与子节点。
 
 这个接口的实现类是```WatchManager```
 
@@ -28,7 +33,11 @@
 
 在这个函数中会调用到 `WatchManager` 的注销函数，通过调用该函数直接将监听器注册到管理者中进行管理。
 
-调用 `removeWatcher(org.apache.zookeeper.Watcher)` ，该函数直接删除注销监听器，同时对一些垃圾进行回收处理，确保数据树的干净整洁，避免对内存空间造成较大的损伤和无效的存储。
+调用 
+```java
+	removeWatcher(org.apache.zookeeper.Watcher)
+```
+，该函数直接删除注销监听器，同时对一些垃圾进行回收处理，确保数据树的干净整洁，避免对内存空间造成较大的损伤和无效的存储。
 
 ---
 
@@ -60,11 +69,45 @@ public Stat setData(String path, byte[] data, int version, long zxid, long time)
 
 上述过程中调用到扳机方法，下面具体对 `org.apache.zookeeper.server.watch.WatchManager` 中的函数 `triggerWatch` 进行说明。即对具体的监听器触发进行说明。该函数接收多个参数，重点参数为 `path` 节点的路径， `type` 触发的事件的类型等，这些变量用于找到需要触发的触发器集合，同时说明触发的事件类型和内容。
 
-在函数中首先定义 `WatchedEvent e = new WatchedEvent(type, KeeperState.SyncConnected, path, zxid);` 用于创建一个`WatchedEvent`对象，表示发生在给定路径上的特定类型的事件。然后使用`Set<Watcher> watchers = new HashSet<>();` 创建一个HashSet用于存放触发的Watcher。然后使用`synchronized (this) {`：加锁，确保线程安全，再执行下面的代码。`PathParentIterator pathParentIterator = getPathParentIterator(path);` 通过路径获取一个迭代器，用于遍历父路径。在接下来的循环中 `for (String localPath : pathParentIterator.asIterable()) {` 遍历路径的父路径，使用 `Set<Watcher> thisWatchers = watchTable.get(localPath);` 来根据路径获取对应的监听器集合。这样遍历当前路径下的监听器，检查它们的监听模式并添加到`watchers`集合中。对于不同的监听模式，可能会修改监听器的状态。
+在函数中首先定义 
 
-当然依据 `if (thisWatchers.isEmpty()) { watchTable.remove(localPath); }` 如果当前路径下的监听器集合为空，需要从`watchTable`中移除。这样就获取到了所有需要触发的监听器集合。
+```java
+	WatchedEvent e = new WatchedEvent(type, KeeperState.SyncConnected, path, zxid);
+````
+用于创建一个`WatchedEvent`对象，表示发生在给定路径上的特定类型的事件。然后使用
 
-遍历`watchers`集合，对每个Watcher执行相应的处理。如果存在需要抑制的Watcher（在`supress`中），则跳过。其中 `w.process(e);`：调用Watcher的`process`方法，触发Watcher的处理逻辑。根据事件类型更新服务器的监控指标。最后需要返回一个`WatcherOrBitSet`对象，其中包含触发的Watcher集合。这样就完成了被监听者对所有需要通知到的监听器的通知。
+```java
+	Set<Watcher> watchers = new HashSet<>();
+```
+
+创建一个HashSet用于存放触发的Watcher。然后使用`synchronized (this) {`：加锁，确保线程安全，再执行下面的代码。
+```java
+	PathParentIterator pathParentIterator = getPathParentIterator(path);
+```
+通过路径获取一个迭代器，用于遍历父路径。在接下来的循环中 
+```java
+	for (String localPath : pathParentIterator.asIterable()) {
+```
+遍历路径的父路径，使用 
+```java
+	Set<Watcher> thisWatchers = watchTable.get(localPath);
+```
+来根据路径获取对应的监听器集合。这样遍历当前路径下的监听器，检查它们的监听模式并添加到`watchers`集合中。对于不同的监听模式，可能会修改监听器的状态。
+
+当然依据 
+```java
+if (thisWatchers.isEmpty()) 
+{ 
+	watchTable.remove(localPath); 
+}
+```
+如果当前路径下的监听器集合为空，需要从`watchTable`中移除。这样就获取到了所有需要触发的监听器集合。
+
+遍历`watchers`集合，对每个Watcher执行相应的处理。如果存在需要抑制的Watcher（在`suppress`中），则跳过。其中 
+```java
+	w.process(e);
+```
+：调用Watcher的`process`方法，触发Watcher的处理逻辑。根据事件类型更新服务器的监控指标。最后需要返回一个`WatcherOrBitSet`对象，其中包含触发的Watcher集合。这样就完成了被监听者对所有需要通知到的监听器的通知。
 
 总体来说，这段代码的主要目的是遍历给定路径及其父路径上的Watcher，根据事件类型触发相应的Watcher，并更新监控指标。  
 
