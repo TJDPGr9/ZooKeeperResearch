@@ -29,11 +29,7 @@
        - getChildren。
        
        相关代码在源码的测试类中，有
-       - RemoveWatchesTest
-       - RemoveWatchesCmdTest
-       - ConfigWatcherPathTest
-       
-       三个测试类有选择地阅读（推荐1、2选择其中一个即可），只要覆盖了主要的watch相关API的基本使用情景即可。（**这2个人不需要阅读main目录下代码，1人负责论文伪代码解析，1人负责测试代码解析**）
+       - WriteLockTest（**这2个人不需要阅读main目录下代码，1人负责论文伪代码解析，1人负责测试代码解析**）
     - 剩余1人制作简易PPT、讲稿并上台答辩。
 
 P.S. 该分工为初步分工，如果发现工作量倾斜较大会进行相应减少或调整，比如API可以先只分析1个。
