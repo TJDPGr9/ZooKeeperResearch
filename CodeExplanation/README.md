@@ -1,18 +1,12 @@
-![image-20231013112013316](assets/image-20231013112013316.png)
+org.apache.zookeeper.server.DataTree类有俩成员变量```dataWatches```与```childWatches```，表示两种Watch类型，用于监视数据与子节点。
 
-DataTree类
+这个接口的实现类是```WatchManager```
 
-有俩成员变量
+该实现类有字典watchTable，实现watch名字到对象实例集合的映射。
 
-![image-20231013112111660](assets/image-20231013112111660.png)
-
-这个接口的实现类是
-
-![image-20231013112134759](assets/image-20231013112134759.png)
-
-该实现类有成员变量
-
-![image-20231013112211911](assets/image-20231013112211911.png)
+```java
+	private final Map<String,Set<Watch>> watchTable=new HashMap<>();
+```
 
 这个里面装的就是各个观察者
 
@@ -24,11 +18,20 @@ DataTree类
 
 `org.apache.zookeeper.server.DataTree#addWatch` 函数
 
-![image-20231013112423242](assets/image-20231013112423242.png)
+```java
+public void addWatch(String basePath, Watcher watcher, int mode) {
+        WatcherMode watcherMode = WatcherMode.fromZooDef(mode);
+        dataWatches.addWatch(basePath, watcher, watcherMode);
+        if (watcherMode != WatcherMode.PERSISTENT_RECURSIVE) {
+            childWatches.addWatch(basePath, watcher, watcherMode);
+        }
+    }
+```
 
-调用到
-
-`org.apache.zookeeper.server.watch.WatchManager#addWatch(java.lang.String, org.apache.zookeeper.Watcher, org.apache.zookeeper.server.watch.WatcherMode)`
+调用到org.apache.zookeeper.server.watch.WatchManager下的
+```java
+	addWatch(java.lang.String, org.apache.zookeeper.Watcher, org.apache.zookeeper.server.watch.WatcherMode)
+```
 
 该函数讲监听器注册加入
 
@@ -38,13 +41,40 @@ DataTree类
 
 `org.apache.zookeeper.server.DataTree#removeCnxn`
 
-![image-20231013113709605](assets/image-20231013113709605.png)
+```java
+public void removeCnxn(Watcher watcher) {
+        dataWatches.removeWatcher(watcher);
+        childWatches.removeWatcher(watcher);
+    }
+```
 
 调用
 
 `org.apache.zookeeper.server.watch.WatchManager#removeWatcher(org.apache.zookeeper.Watcher)`
 
-<img src="assets/image-20231013113750796.png" alt="image-20231013113750796" style="zoom:50%;" />
+```java
+@Override
+    public synchronized void removeWatcher(Watcher watcher) {
+        Map<String, WatchStats> paths = watch2Paths.remove(watcher);
+        if (paths == null) {
+            return;
+        }
+        for (String p : paths.keySet()) {
+            Set<Watcher> list = watchTable.get(p);
+            if (list != null) {
+                list.remove(watcher);
+                if (list.isEmpty()) {
+                    watchTable.remove(p);
+                }
+            }
+        }
+        for (WatchStats stats : paths.values()) {
+            if (stats.hasMode(WatcherMode.PERSISTENT_RECURSIVE)) {
+                --recursiveWatchQty;
+            }
+        }
+    }
+```
 
 删除注销监听器
 
@@ -52,7 +82,7 @@ DataTree类
 
 
 
-触发广播
+## 触发广播
 
 `org.apache.zookeeper.server.DataTree#deleteNode` 删除节点时的触发
 
@@ -61,10 +91,43 @@ DataTree类
 下面只对状态改变时进行说明，增加删除同理
 
 `org.apache.zookeeper.server.DataTree#setData`
+```java
+public Stat setData(String path, byte[] data, int version, long zxid, long time) throws NoNodeException {
+        Stat s = new Stat();
+        DataNode n = nodes.get(path);
+        if (n == null) {
+            throw new NoNodeException();
+        }
+        byte[] lastData;
+        synchronized (n) {
+            lastData = n.data;
+            nodes.preChange(path, n);
+            n.data = data;
+            n.stat.setMtime(time);
+            n.stat.setMzxid(zxid);
+            n.stat.setVersion(version);
+            n.copyStat(s);
+            nodes.postChange(path, n);
+        }
 
-<img src="assets/image-20231013114004837.png" alt="image-20231013114004837" style="zoom: 50%;" />
+        // first do a quota check if the path is in a quota subtree.
+        String lastPrefix = getMaxPrefixWithQuota(path);
+        long bytesDiff = (data == null ? 0 : data.length) - (lastData == null ? 0 : lastData.length);
+        // now update if the path is in a quota subtree.
+        long dataBytes = data == null ? 0 : data.length;
+        if (lastPrefix != null) {
+            updateQuotaStat(lastPrefix, bytesDiff, 0);
+        }
+        nodeDataSize.addAndGet(getNodeSize(path, data) - getNodeSize(path, lastData));
 
-调用
+        updateWriteStat(path, dataBytes);
+        dataWatches.triggerWatch(path, EventType.NodeDataChanged, zxid);
+        return s;
+    }
+```
+
+
+## 调用
 
 `org.apache.zookeeper.server.watch.WatchManager#triggerWatch(java.lang.String, org.apache.zookeeper.Watcher.Event.EventType, long, org.apache.zookeeper.server.watch.WatcherOrBitSet)`
 
